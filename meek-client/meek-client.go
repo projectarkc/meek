@@ -92,6 +92,7 @@ var options struct {
 	Front      string
 	ProxyURL   *url.URL
 	HelperAddr *net.TCPAddr
+	DEST       string
 }
 
 // When a connection handler starts, +1 is written to this channel; when it
@@ -180,7 +181,8 @@ func copyLoop(conn net.Conn, info *RequestInfo) error {
 		var buf [maxPayloadLength]byte
 		r := bufio.NewReader(conn)
 		for {
-			n, err := r.Read(buf[:])
+			offset := copy(buf[:len(options.DEST)], []byte(options.DEST))
+			n, err := r.Read(buf[offset:])
 			b := make([]byte, n)
 			copy(b, buf[:n])
 			// log.Printf("read from local: %q", b)
@@ -361,7 +363,10 @@ func main() {
 	flag.StringVar(&logFilename, "log", "", "name of log file")
 	flag.StringVar(&proxy, "proxy", "", "proxy URL")
 	flag.StringVar(&options.URL, "url", "", "URL to request if no url= SOCKS arg")
+	flag.StringVar(&options.DEST, "desturl", "", "URL to send request to")
 	flag.Parse()
+
+	options.DEST += "%"
 
 	if logFilename != "" {
 		f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
