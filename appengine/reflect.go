@@ -8,13 +8,14 @@ import (
 	"net"
 	"net/url"
 	"time"
+	"bufio"
 
 	"appengine"
 	"appengine/urlfetch"
 )
 
 const (
-	forwardURL = "https://meek.bamsoftware.com/"
+		forwardURL = "http://home.arkc.org:3389/"
 	// A timeout of 0 means to use the App Engine default (5 seconds).
 	urlFetchTimeout = 20 * time.Second
 )
@@ -55,14 +56,17 @@ func getClientAddr(r *http.Request) string {
 // Make a copy of r, with the URL being changed to be relative to forwardURL,
 // and including only the headers in reflectedHeaderFields.
 func copyRequest(r *http.Request) (*http.Request, error) {
-	u, err := url.Parse(forwardURL)
+	request := bufio.NewReader(r.Body)
+	desturl, err := request.ReadBytes('%')
+	forward := string(desturl[:])
+	u, err := url.Parse(forward)
 	if err != nil {
 		return nil, err
 	}
 	// Append the requested path to the path in forwardURL, so that
 	// forwardURL can be something like "https://example.com/reflect".
 	u.Path = pathJoin(u.Path, r.URL.Path)
-	c, err := http.NewRequest(r.Method, u.String(), r.Body)
+	c, err := http.NewRequest(r.Method, u.String(), request)
 	if err != nil {
 		return nil, err
 	}
