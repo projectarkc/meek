@@ -183,8 +183,8 @@ func copyLoop(conn net.Conn, info *RequestInfo) error {
 		for {
 			offset := copy(buf[:len(options.DEST)], []byte(options.DEST))
 			n, err := r.Read(buf[offset:])
-			b := make([]byte, n)
-			copy(b, buf[:n])
+			b := make([]byte, offset + n)
+			copy(b, buf[:offset + n])
 			// log.Printf("read from local: %q", b)
 			ch <- b
 			if err != nil {
@@ -211,9 +211,10 @@ loop:
 			// log.Printf("read %d bytes from local after %.2f s", len(buf), time.Since(start).Seconds())
 		case <-time.After(interval):
 			// log.Printf("read nothing from local after %.2f s", time.Since(start).Seconds())
-			buf = nil
-		}
-
+			//buf = nil
+			copy(buf[:], []byte(options.DEST))
+}
+		//log.Printf(string(buf[:]))     // This printf never worked
 		nw, err := sendRecv(buf, conn, info)
 		if err != nil {
 			return err
@@ -366,7 +367,7 @@ func main() {
 	flag.StringVar(&options.DEST, "desturl", "", "URL to send request to")
 	flag.Parse()
 
-	options.DEST += "%"
+	options.DEST += "\n"
 
 	if logFilename != "" {
 		f, err := os.OpenFile(logFilename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)

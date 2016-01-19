@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"time"
 	"bufio"
+	//"log"
+	//"bytes"
 
 	"appengine"
 	"appengine/urlfetch"
@@ -21,6 +23,8 @@ const (
 )
 
 var context appengine.Context
+//A very bad hack
+var forward string
 
 // Join two URL paths.
 func pathJoin(a, b string) string {
@@ -57,15 +61,23 @@ func getClientAddr(r *http.Request) string {
 // and including only the headers in reflectedHeaderFields.
 func copyRequest(r *http.Request) (*http.Request, error) {
 	request := bufio.NewReader(r.Body)
-	desturl, err := request.ReadBytes('%')
-	forward := string(desturl[:])
+	desturl, _, err := request.ReadLine()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//log.Print(string(desturl[:]))
+	if len(desturl) > 0 {
+		forward = string(desturl[:])
+	}
 	u, err := url.Parse(forward)
+	//log.Print("URL is " + forward)
 	if err != nil {
 		return nil, err
 	}
 	// Append the requested path to the path in forwardURL, so that
 	// forwardURL can be something like "https://example.com/reflect".
-	u.Path = pathJoin(u.Path, r.URL.Path)
+	u.Path = pathJoin(u.Path, r.URL.Path)	
+	//log.Print("URL is " + u.String())
 	c, err := http.NewRequest(r.Method, u.String(), request)
 	if err != nil {
 		return nil, err
