@@ -1,0 +1,6 @@
+export TOR_PT_MANAGED_TRANSPORT_VER=1
+export TOR_PT_SERVER_TRANSPORTS=meek
+export TOR_PT_SERVER_BINDADDR=meek-127.0.0.1:60000
+export TOR_PT_ORPORT=127.0.0.1:22
+
+echo "server -> 60000, orport -> 50000"
