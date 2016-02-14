@@ -141,7 +141,6 @@ func roundTripRetries(buf []byte, info *RequestInfo, limit int) (*http.Response,
 	}
 	var resp *http.Response
 	var err error
-again:
 	limit--
 	resp, err = roundTrip(buf, info)
 	// Retry only if the HTTP roundtrip completed without error, but
@@ -149,11 +148,6 @@ again:
 	// with 200 always return immediately.
 	if err == nil && resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("status code was %d, not %d", resp.StatusCode, http.StatusOK)
-		if limit > 0 {
-			log.Printf("%s; trying again after %.f seconds (%d)", err, retryDelay.Seconds(), limit)
-			time.Sleep(retryDelay)
-			goto again
-		}
 	}
 	return resp, err
 }
@@ -163,7 +157,19 @@ again:
 func sendRecv(buf []byte, conn net.Conn, info *RequestInfo) (int64, error) {
 	resp, err := roundTripRetries(buf, info, maxTries)
 	if err != nil {
+		conn.Close()
 		return 0, err
+	}
+	if resp.ContentLength == 24 {
+		tmpbuf := new(bytes.Buffer)
+		tmpbuf.ReadFrom(resp.Body)
+		if tmpbuf.String() == "%%%%CONNECTION CLOSE%%%%" {
+			conn.Close()
+			return 0, nil
+		} else {
+			defer resp.Body.Close()
+			return io.Copy(conn, io.LimitReader(tmpbuf, maxPayloadLength))
+		}
 	}
 	defer resp.Body.Close()
 	return io.Copy(conn, io.LimitReader(resp.Body, maxPayloadLength))
@@ -189,6 +195,8 @@ func copyLoop(conn net.Conn, info *RequestInfo) error {
 			ch <- b
 			if err != nil {
 				log.Printf("error reading from local: %s", err)
+				b := []byte("%%%%CONNECTION CLOSE%%%%") //not a good way?
+				ch <- b
 				break
 			}
 		}

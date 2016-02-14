@@ -12,6 +12,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"errors"
 
 	"git.torproject.org/pluggable-transports/goptlib.git"
 )
@@ -183,12 +185,24 @@ func scrubError(err error) error {
 // Feed the body of req into the OR port, and write any data read from the OR
 // port back to w.
 func transact(session *Session, w http.ResponseWriter, req *http.Request) error {
-	body := http.MaxBytesReader(w, req.Body, maxPayloadLength+1)
-	_, err := io.Copy(session.Or, body)
-	if err != nil {
-		return fmt.Errorf("error copying body to ORPort: %s", scrubError(err))
+	if req.ContentLength == 24 {
+		body := new(bytes.Buffer)
+		body.ReadFrom(req.Body)
+		if body.String() == "%%%%CONNECTION CLOSE%%%%" {
+			return errors.New("CLOSE CONNECTION")
+		}
+		_, err := io.Copy(session.Or, body)
+		if err != nil {
+			return fmt.Errorf("error copying body to ORPort: %s", scrubError(err))
+		}
+	} else {
+		body := http.MaxBytesReader(w, req.Body, maxPayloadLength+1)
+		_, err := io.Copy(session.Or, body)
+		if err != nil {
+			return fmt.Errorf("error copying body to ORPort: %s", scrubError(err))
+		}
 	}
-
+	
 	buf := make([]byte, maxPayloadLength)
 	session.Or.SetReadDeadline(time.Now().Add(turnaroundTimeout))
 	n, err := session.Or.Read(buf)
@@ -227,9 +241,14 @@ func (state *State) Post(w http.ResponseWriter, req *http.Request) {
 
 	err = transact(session, w, req)
 	if err != nil {
-		log.Print(err)
-		state.CloseSession(sessionID)
-		return
+		if err.Error() != "CLOSE CONNECTION" {
+			log.Print(err)
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Write([]byte("%%%%CONNECTION CLOSE%%%%"))
+		} else {
+			state.CloseSession(sessionID)
+			return
+		}
 	}
 }
 
