@@ -188,7 +188,7 @@ func transact(session *Session, w http.ResponseWriter, req *http.Request) error 
 	if req.ContentLength == 24 {
 		body := new(bytes.Buffer)
 		body.ReadFrom(req.Body)
-		if body.String() == "%%%%CONNECTION CLOSE%%%%" {
+		if body.String() == "@@@@CONNECTION CLOSE@@@@" {
 			return errors.New("CLOSE CONNECTION")
 		}
 		_, err := io.Copy(session.Or, body)
@@ -244,7 +244,7 @@ func (state *State) Post(w http.ResponseWriter, req *http.Request) {
 		if err.Error() != "CLOSE CONNECTION" {
 			log.Print(err)
 			w.Header().Set("Content-Type", "application/octet-stream")
-			w.Write([]byte("%%%%CONNECTION CLOSE%%%%"))
+			w.Write([]byte("@@@@CONNECTION CLOSE@@@@"))
 		} else {
 			state.CloseSession(sessionID)
 			return

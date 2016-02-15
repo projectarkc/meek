@@ -163,7 +163,7 @@ func sendRecv(buf []byte, conn net.Conn, info *RequestInfo) (int64, error) {
 	if resp.ContentLength == 24 {
 		tmpbuf := new(bytes.Buffer)
 		tmpbuf.ReadFrom(resp.Body)
-		if tmpbuf.String() == "%%%%CONNECTION CLOSE%%%%" {
+		if tmpbuf.String() == "@@@@CONNECTION CLOSE@@@@" {
 			conn.Close()
 			return 0, nil
 		} else {
@@ -195,7 +195,7 @@ func copyLoop(conn net.Conn, info *RequestInfo) error {
 			ch <- b
 			if err != nil {
 				log.Printf("error reading from local: %s", err)
-				b := []byte("%%%%CONNECTION CLOSE%%%%") //not a good way?
+				b := []byte(options.DEST + "@@@@CONNECTION CLOSE@@@@") //not a good way?
 				ch <- b
 				break
 			}
