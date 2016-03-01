@@ -32,6 +32,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	mrand "math/rand"
 	"encoding/base64"
 	"flag"
 	"fmt"
@@ -88,7 +89,7 @@ var httpTransport http.Transport
 
 // Store for command line options.
 var options struct {
-	URL        string
+	URL        []string
 	Front      string
 	ProxyURL   *url.URL
 	HelperAddr *net.TCPAddr
@@ -283,8 +284,8 @@ func handler(conn *pt.SocksConn) error {
 	// First check url= SOCKS arg, then --url option.
 	urlArg, ok := conn.Req.Args.Get("url")
 	if ok {
-	} else if options.URL != "" {
-		urlArg = options.URL
+	} else if len(options.URL) != 0 {
+		urlArg = options.URL[mrand.Intn(len(options.URL))]
 	} else {
 		return fmt.Errorf("no URL for SOCKS request")
 	}
@@ -366,14 +367,17 @@ func main() {
 	var logFilename string
 	var proxy string
 	var err error
+	var urls string
 
 	flag.StringVar(&options.Front, "front", "", "front domain name if no front= SOCKS arg")
 	flag.StringVar(&helperAddr, "helper", "", "address of HTTP helper (browser extension)")
 	flag.StringVar(&logFilename, "log", "", "name of log file")
 	flag.StringVar(&proxy, "proxy", "", "proxy URL")
-	flag.StringVar(&options.URL, "url", "", "URL to request if no url= SOCKS arg")
+	flag.StringVar(&urls, "url", "", "URL to request if no url= SOCKS arg, split with '|' for many")
 	flag.StringVar(&options.DEST, "desturl", "", "URL to send request to")
 	flag.Parse()
+
+	options.URL = strings.Split(urls, "|")
 
 	options.DEST += "\n"
 
