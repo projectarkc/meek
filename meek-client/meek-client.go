@@ -188,18 +188,33 @@ func copyLoop(conn net.Conn, info *RequestInfo) error {
 		var buf [maxPayloadLength]byte
 		r := bufio.NewReader(conn)
 		for {
-			offset := copy(buf[:len(options.DEST)], []byte(options.DEST))
-			n, err := r.Read(buf[offset:])
-			b := make([]byte, offset + n)
-			copy(b, buf[:offset + n])
-			// log.Printf("read from local: %q", b)
-			ch <- b
-			if err != nil {
-				log.Printf("error reading from local: %s", err)
-				b := []byte(options.DEST + "@@@@CONNECTION CLOSE@@@@") //not a good way?
+			if options.DEST != "\n" {
+				offset := copy(buf[:len(options.DEST)], []byte(options.DEST))
+				n, err := r.Read(buf[offset:])
+				if err != nil {
+					log.Printf("error reading from local: %s", err)
+					b := []byte(options.DEST + "@@@@CONNECTION CLOSE@@@@") //not a good way?
+					ch <- b
+					break
+				}
+				b := make([]byte, offset + n)
+				copy(b, buf[:offset + n])
 				ch <- b
-				break
+			} else {
+				offset := copy(buf[:len(options.DEST)], []byte(options.DEST))
+				n, err := r.Read(buf[offset:])
+				if err != nil {
+					log.Printf("error reading from local: %s", err)
+					b := []byte(options.DEST + "@@@@CONNECTION CLOSE@@@@") //not a good way?
+					ch <- b
+					break
+				}
+				b := make([]byte, n)
+				copy(b, buf[:n])
+				ch <- b	
 			}
+			// log.Printf("read from local: %q", b)
+			
 		}
 		close(ch)
 	}()
