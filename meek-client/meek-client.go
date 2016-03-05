@@ -201,17 +201,17 @@ func copyLoop(conn net.Conn, info *RequestInfo) error {
 				copy(b, buf[:offset + n])
 				ch <- b
 			} else {
-				offset := copy(buf[:len(options.DEST)], []byte(options.DEST))
-				n, err := r.Read(buf[offset:])
+				n, err := r.Read(buf[:])
+				b := make([]byte, n)
+				copy(b, buf[:n])
+			// log.Printf("read from local: %q", b)
+				ch <- b
 				if err != nil {
 					log.Printf("error reading from local: %s", err)
 					b := []byte(options.DEST + "@@@@CONNECTION CLOSE@@@@") //not a good way?
 					ch <- b
 					break
 				}
-				b := make([]byte, n)
-				copy(b, buf[:n])
-				ch <- b	
 			}
 			// log.Printf("read from local: %q", b)
 			
