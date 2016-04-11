@@ -45,6 +45,8 @@ const (
 	// How long we try to read something back from the OR port before
 	// returning the response.
 	turnaroundTimeout = 10 * time.Millisecond
+
+	newconnTimeout = 2 * time.Second
 	// Passed as ReadTimeout and WriteTimeout when constructing the
 	// http.Server.
 	readWriteTimeout = 20 * time.Second
@@ -140,7 +142,8 @@ func getUseraddr(req *http.Request) string {
 
 // Look up a session by id, or create a new one (with its OR port connection) if
 // it doesn't already exist.
-func (state *State) GetSession(sessionID string, req *http.Request) (*Session, error) {
+func (state *State) GetSession(sessionID string, req *http.Request) (*Session, bool, error) {
+	newconn := false
 	state.lock.Lock()
 	defer state.lock.Unlock()
 
@@ -150,14 +153,15 @@ func (state *State) GetSession(sessionID string, req *http.Request) (*Session, e
 
 		or, err := pt.DialOr(&ptInfo, getUseraddr(req), ptMethodName)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		session = &Session{Or: or}
 		state.sessionMap[sessionID] = session
+		newconn = true
 	}
 	session.Touch()
 
-	return session, nil
+	return session, newconn, nil
 }
 
 // scrubbedAddr is a phony net.Addr that returns "[scrubbed]" for all calls.
@@ -184,7 +188,7 @@ func scrubError(err error) error {
 
 // Feed the body of req into the OR port, and write any data read from the OR
 // port back to w.
-func transact(session *Session, w http.ResponseWriter, req *http.Request) error {
+func transact(session *Session, newconn bool, w http.ResponseWriter, req *http.Request) error {
 	if req.ContentLength == 24 {
 		body := new(bytes.Buffer)
 		body.ReadFrom(req.Body)
@@ -204,7 +208,12 @@ func transact(session *Session, w http.ResponseWriter, req *http.Request) error 
 	}
 	
 	buf := make([]byte, maxPayloadLength)
-	session.Or.SetReadDeadline(time.Now().Add(turnaroundTimeout))
+	if !newconn {
+		session.Or.SetReadDeadline(time.Now().Add(turnaroundTimeout))
+	} else {
+		session.Or.SetReadDeadline(time.Now().Add(newconnTimeout))
+	}
+	
 	n, err := session.Or.Read(buf)
 	if err != nil {
 		if e, ok := err.(net.Error); !ok || !e.Timeout() {
@@ -232,14 +241,14 @@ func (state *State) Post(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	session, err := state.GetSession(sessionID, req)
+	session, newconn, err := state.GetSession(sessionID, req)
 	if err != nil {
 		log.Print(err)
 		httpInternalServerError(w)
 		return
 	}
 
-	err = transact(session, w, req)
+	err = transact(session, newconn, w, req)
 	if err != nil {
 		if err.Error() != "CLOSE CONNECTION" {
 			log.Print(err)
