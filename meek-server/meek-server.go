@@ -41,9 +41,10 @@ const (
 	minSessionIDLength = 8
 	// The largest request body we are willing to process, and the largest
 	// chunk of data we'll send back in a response.
-	
-	maxPayloadLength = 10485760 //TODO: THERE SHOULD BE A BETTER WAY?
 
+	maxRecvPayloadLength = 10485760 //TODO: THERE SHOULD BE A BETTER WAY?
+	maxSendPayloadLength = 0x10000
+	RecvChunksize = 4096
 	// How long we try to read something back from the OR port before
 	// returning the response.
 	turnaroundTimeout = 10 * time.Millisecond
@@ -202,14 +203,15 @@ func transact(session *Session, newconn bool, w http.ResponseWriter, req *http.R
 			return fmt.Errorf("error copying body to ORPort: %s", scrubError(err))
 		}
 	} else {
-		body := http.MaxBytesReader(w, req.Body, maxPayloadLength+1)
-		_, err := io.Copy(session.Or, body)
-		if err != nil {
-			return fmt.Errorf("error copying body to ORPort: %s", scrubError(err))
+		var err error
+		err = nil
+		body := http.MaxBytesReader(w, req.Body, maxRecvPayloadLength)
+		for err==nil {
+			_, err = io.CopyN(session.Or, body, RecvChunksize)
 		}
 	}
 	
-	buf := make([]byte, maxPayloadLength)
+	buf := make([]byte, maxSendPayloadLength)
 	if !newconn {
 		session.Or.SetReadDeadline(time.Now().Add(turnaroundTimeout))
 	} else {
