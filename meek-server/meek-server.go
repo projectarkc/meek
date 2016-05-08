@@ -41,7 +41,9 @@ const (
 	minSessionIDLength = 8
 	// The largest request body we are willing to process, and the largest
 	// chunk of data we'll send back in a response.
-	maxPayloadLength = 0x100000000
+	
+	maxPayloadLength = 10485760 //TODO: THERE SHOULD BE A BETTER WAY?
+
 	// How long we try to read something back from the OR port before
 	// returning the response.
 	turnaroundTimeout = 10 * time.Millisecond
