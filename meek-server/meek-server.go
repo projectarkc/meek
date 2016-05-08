@@ -77,6 +77,7 @@ func httpInternalServerError(w http.ResponseWriter) {
 // a new OR port connection.
 type Session struct {
 	Or       *net.TCPConn
+	Lock     sync.Mutex
 	LastSeen time.Time
 }
 
@@ -198,7 +199,9 @@ func transact(session *Session, newconn bool, w http.ResponseWriter, req *http.R
 		if body.String() == "@@@@CONNECTION CLOSE@@@@" {
 			return errors.New("CLOSE CONNECTION")
 		}
+		session.Lock.Lock()
 		_, err := io.Copy(session.Or, body)
+		session.Lock.Unlock()
 		if err != nil {
 			return fmt.Errorf("error copying body to ORPort: %s", scrubError(err))
 		}
@@ -207,7 +210,9 @@ func transact(session *Session, newconn bool, w http.ResponseWriter, req *http.R
 		err = nil
 		body := http.MaxBytesReader(w, req.Body, maxRecvPayloadLength)
 		for err==nil {
+			session.Lock.Lock()
 			_, err = io.CopyN(session.Or, body, RecvChunksize)
+			session.Lock.Unlock()
 		}
 	}
 	
@@ -217,8 +222,9 @@ func transact(session *Session, newconn bool, w http.ResponseWriter, req *http.R
 	} else {
 		session.Or.SetReadDeadline(time.Now().Add(newconnTimeout))
 	}
-	
+	session.Lock.Lock()
 	n, err := session.Or.Read(buf)
+	session.Lock.Unlock()
 	if err != nil {
 		if e, ok := err.(net.Error); !ok || !e.Timeout() {
 			httpInternalServerError(w)
@@ -273,7 +279,9 @@ func (state *State) CloseSession(sessionID string) {
 	// log.Printf("closing session %q", sessionID)
 	session, ok := state.sessionMap[sessionID]
 	if ok {
+		session.Lock.Lock()
 		session.Or.Close()
+		session.Lock.Unlock()
 		delete(state.sessionMap, sessionID)
 	}
 }
@@ -286,7 +294,9 @@ func (state *State) ExpireSessions() {
 		for sessionID, session := range state.sessionMap {
 			if session.IsExpired() {
 				// log.Printf("deleting expired session %q", sessionID)
+				session.Lock.Lock()
 				session.Or.Close()
+				session.Lock.Unlock()
 				delete(state.sessionMap, sessionID)
 			}
 		}
