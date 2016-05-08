@@ -44,7 +44,7 @@ const (
 
 	maxRecvPayloadLength = 10485760 //TODO: THERE SHOULD BE A BETTER WAY?
 	maxSendPayloadLength = 0x10000
-	RecvChunksize = 4096
+	RecvChunksize = 4101
 	// How long we try to read something back from the OR port before
 	// returning the response.
 	turnaroundTimeout = 10 * time.Millisecond
